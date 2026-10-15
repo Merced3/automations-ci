@@ -1,0 +1,61 @@
+# python-checks.yml — THE shared CI checklist for every Automations repo.
+#
+# Defined once here (Merced3/automations); each project repo calls it with
+# ~5 lines (see ops/PLAN.md Stage 0). Change the checklist here and every
+# repo picks it up on its next push.
+#
+# What every Python project in this system must pass:
+#   1. pip-installable with its dev extras (automation-harness resolved
+#      from its repo, same as local dev and the Docker builds)
+#   2. ruff check .
+#   3. pytest
+name: Python checks
+
+on:
+  workflow_call:
+    inputs:
+      # automation-harness itself passes false (it IS the harness).
+      needs-harness:
+        type: boolean
+        default: true
+    secrets:
+      # Fine-grained PAT with Contents:read on Merced3/automation-harness,
+      # so CI can check out the private harness repo. Not needed when
+      # needs-harness is false.
+      AUTOMATIONS_PAT:
+        required: false
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout automation-harness
+        if: inputs.needs-harness
+        uses: actions/checkout@v4
+        with:
+          repository: Merced3/automation-harness
+          path: .harness
+          token: ${{ secrets.AUTOMATIONS_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ inputs.needs-harness }}" = "true" ]; then
+            python -m pip install ./.harness
+            rm -rf .harness   # keep ruff/pytest from seeing the harness tree
+          fi
+          python -m pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Test (pytest)
+        run: pytest
