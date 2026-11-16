@@ -19,10 +19,10 @@ on:
         type: boolean
         default: true
     secrets:
-      # Fine-grained PAT with Contents:read on Merced3/automation-harness,
-      # so CI can check out the private harness repo. Not needed when
+      # Private key for automations-ci-reader. The App is installed with
+      # Contents:read on Merced3/automation-harness only. Not needed when
       # needs-harness is false.
-      AUTOMATIONS_PAT:
+      AUTOMATIONS_CI_APP_PRIVATE_KEY:
         required: false
 
 jobs:
@@ -31,13 +31,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mint automation-harness read token
+        if: inputs.needs-harness
+        id: harness-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.AUTOMATIONS_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMATIONS_CI_APP_PRIVATE_KEY }}
+          owner: Merced3
+          repositories: automation-harness
+          permission-contents: read
+
       - name: Checkout automation-harness
         if: inputs.needs-harness
         uses: actions/checkout@v4
         with:
           repository: Merced3/automation-harness
           path: .harness
-          token: ${{ secrets.AUTOMATIONS_PAT }}
+          token: ${{ steps.harness-app-token.outputs.token }}
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
